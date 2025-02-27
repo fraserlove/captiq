@@ -1,0 +1,2 @@
+class DataProviderError(Exception):
+    pass
