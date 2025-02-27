@@ -1,6 +1,6 @@
 # Captiq
 
-Captiq processes investment account activity to calculate UK Capital Gains Tax in accordance with HMRC share identification rules and provides information for the Capital Gains SA108 form in a Self Assessment tax return. Additionally, it provides options to view the allocation weight and unrealised gain/loss for open positions, share acquisitions and disposals, dividends paid out, interest on cash earned, and cash deposits or withdrawals.
+Captiq analyses account activity on share investment platforms to calculate UK Capital Gains Tax in accordance with HMRC share identification rules and provides information for the Capital Gains SA108 form in a Self Assessment tax return. Additionally, it provides options to view the allocation weight and unrealised gain/loss for open positions, share acquisitions and disposals, dividends paid out, interest on cash earned, and cash deposits or withdrawals. Captiq is based on [Investir](https://github.com/tacgomes/investir) by [Tiago Gomes](https://github.com/tacgomes).
 
 ## Installation and Usage
 
