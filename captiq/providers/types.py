@@ -1,10 +1,9 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from dateutil.parser import parse
 from decimal import Decimal
 from yaml import YAMLObject
-from dateutil.parser import parse as parse_timestamp
-
 
 @dataclass
 class Split(YAMLObject):
@@ -16,7 +15,7 @@ class Split(YAMLObject):
     def from_yaml(cls, loader, node) -> 'Split':
         value = loader.construct_scalar(node)
         timestamp, ratio = value.split(',')
-        return Split(parse_timestamp(timestamp), Decimal(ratio))
+        return Split(parse(timestamp), Decimal(ratio))
 
     @classmethod
     def to_yaml(cls, dumper, data) -> str:
@@ -24,7 +23,6 @@ class Split(YAMLObject):
 
     def __eq__(self, other) -> bool:
         return self.date == other.date and self.ratio == other.ratio
-
 
 @dataclass
 class SecurityInfo(YAMLObject):

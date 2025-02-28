@@ -1,21 +1,21 @@
 from collections import defaultdict, namedtuple
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, replace
-from datetime import date, timedelta
+from dataclasses import replace
+from datetime import timedelta
 from decimal import Decimal
 from typing import TypeAlias
 
 from moneyed import Money
 
 from captiq.config import config
-from captiq.const import BASE_CURRENCY
+from captiq import BASE_CURRENCY
 from captiq.exceptions import AmbiguousTickerError, IncompleteRecordsError, CaptiqError
 from captiq.providers.security import SecurityData
 from captiq.providers.fx import FXData
 from captiq.table import Field, Format, Table
 from captiq.tax import CapitalGain, Section104
 from captiq.transaction import Acquisition, Disposal, Order
-from captiq.trhistory import TransactionHistory
+from captiq.trhistory import Transactions
 from captiq.types import ISIN, Ticker, Year
 from captiq.logging import logger, raise_or_warn
 
@@ -29,7 +29,7 @@ def thirty_days_match(ord1: Acquisition, ord2: Disposal) -> bool:
     return ord1.isin == ord2.isin and ord2.date < ord1.date <= ord2.date + timedelta(days=30)
 
 class TaxCalculator:
-    def __init__(self, tr_hist: TransactionHistory, security_data: SecurityData, fx_data: FXData) -> None:
+    def __init__(self, tr_hist: Transactions, security_data: SecurityData, fx_data: FXData) -> None:
         self._tr_hist = tr_hist
         self._security_data = security_data
         self._fx_data = fx_data

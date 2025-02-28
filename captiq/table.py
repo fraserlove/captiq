@@ -10,7 +10,7 @@ from functools import cache
 from typing import Any, Mapping, Set
 from moneyed import Currency, Money
 
-from captiq.const import BASE_CURRENCY
+from captiq import BASE_CURRENCY
 from captiq.logging import BOLD, RESET, BLUE, RED
 
 def boldify(text: str) -> str:

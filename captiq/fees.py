@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from moneyed import Currency, Money
 
-from captiq.const import BASE_CURRENCY
+from captiq import BASE_CURRENCY
 
 def add(a: Money | None, b: Money | None) -> Money | None:
     return (a + b) if a and b else (a or b)

@@ -1,15 +1,12 @@
 from collections.abc import Callable, Mapping, Iterable, Sequence, ValuesView
-from typing import NamedTuple, TypeVar
+from typing import NamedTuple
 
 from captiq.exceptions import AmbiguousTickerError
 from captiq.table import Field, Format, Table
 from captiq.transaction import Acquisition, Disposal, Dividend, Interest, Order, Transaction, Transfer
 from captiq.types import ISIN, Ticker
 
-T = TypeVar('T', bound=Transaction)
-
-
-def unique_and_sorted(transactions: Sequence[T] | None) -> Sequence[T]:
+def unique_and_sorted(transactions: Sequence[Transaction] | None) -> Sequence[Transaction]:
     """Remove duplicated transactions and sort them by timestamp."""
     return sorted(set(transactions or []), key=lambda tr: tr.timestamp)
 
@@ -20,8 +17,7 @@ class Security(NamedTuple):
     isin: ISIN
     name: str = ''
 
-
-class TransactionHistory:
+class Transactions:
     def __init__(
         self,
         *,

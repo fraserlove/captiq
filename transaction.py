@@ -5,9 +5,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from decimal import Decimal
-from moneyed import Money
 from functools import reduce
 from typing import ClassVar, Self
+
+from moneyed import Money
 
 from captiq.fees import Fees
 from captiq.providers.types import Split

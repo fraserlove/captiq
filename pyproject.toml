@@ -4,8 +4,7 @@ build-backend = 'hatchling.build'
 
 [project]
 name = 'captiq'
-version = '1.0.0'
-description = 'UK Capital Gains Tax Calculator'
+dynamic = ['version']
 readme = 'README.md'
 authors = [
     {name = 'Fraser Love', email = 'me@fraser.love'}
@@ -23,4 +22,7 @@ dependencies = [
 requires-python = '>=3.10'
 
 [project.scripts]
-captiq = 'captiq.cli:main'
+captiq = 'captiq.cli:app'
+
+[tool.hatch.version]
+path = 'captiq/__init__.py'

@@ -9,18 +9,15 @@ import typer
 from captiq.config import config
 from captiq.exceptions import CaptiqError
 from captiq.providers import SecurityData, FXData
-
 from captiq.logging import configure_logger
-from captiq.parsers import find_parser
 from captiq.calculate import TaxCalculator
 from captiq.transaction import Transaction
-from captiq.trhistory import TransactionHistory
+from captiq.trhistory import Transactions
 from captiq.types import Ticker, Year
 from captiq.logging import logger
 from captiq.year import TaxYear
-
-__version__ = '0.1.0'
-__package__ = 'captiq'
+from captiq import __version__, __package__
+from captiq.parsers import parse_files
 
 
 class OrderedCommands(typer.core.TyperGroup):
@@ -28,7 +25,7 @@ class OrderedCommands(typer.core.TyperGroup):
         return list(self.commands.keys())
 
 
-class MutuallyExclusiveOption(click.exceptions.UsageError):
+class MutuallyExclusiveError(click.exceptions.UsageError):
     def __init__(self, opt1: str, opt2: str) -> None:
         super().__init__(f'Option {opt1} cannot be used together with option {opt2}')
 
@@ -63,56 +60,20 @@ def abort(message: str) -> None:
     raise typer.Exit(code=1)
 
 
-def parse(input_paths: list[Path]) -> tuple[TransactionHistory, TaxCalculator]:
-    orders, dividends, transfers, interest = [], [], [], []
-
-    for path in input_paths:
-        if path.is_dir():
-            csv_files = sorted(path.glob('**/*.csv'))
-            if not csv_files:
-                logger.debug(f'No CSV files found under {path}/')
-                continue
-            logger.debug(f'Found {len(csv_files)} CSV files under {path}/')
-        else:
-            csv_files = [path]
-            
-        for csv_file in csv_files:
-            logger.debug(f'Parsing input file: {csv_file}')
-            if parser := find_parser(csv_file):
-                try:
-                    result = parser.parse()
-                except CaptiqError as e:
-                    abort(str(e))
-                logger.info(
-                    f'{csv_file.name.split(".")[0]} → {len(result.orders)} orders · {len(result.dividends)} dividends · '
-                    f'{len(result.transfers)} transfers · {len(result.interest)} interest'
-                )
-
-                orders.extend(result.orders)
-                dividends.extend(result.dividends)
-                transfers.extend(result.transfers)
-                interest.extend(result.interest)
-            else:
-                abort(f'Unable to find a parser for {csv_file}')
-
-    tr_hist = TransactionHistory(orders=orders, dividends=dividends, transfers=transfers, interest=interest)
-    tax_calculator = TaxCalculator(tr_hist, SecurityData(tr_hist, config.cache_file), FXData())
-    return tr_hist, tax_calculator
+def parse(input_paths: list[Path]) -> tuple[Transactions, TaxCalculator]:
+    try:
+        transactions = parse_files(input_paths)
+        tax_calculator = TaxCalculator(transactions, SecurityData(transactions, config.cache), FXData())
+        return transactions, tax_calculator
+    except CaptiqError as e:
+        abort(str(e))
 
 
-def create_filters(
-    tax_year: int | None = None,
-    ticker: str | None = None
-) -> Sequence[Callable[[Transaction], bool]]:
-    filters = []
-
-    if tax_year:
-        filters.append(lambda tr: tr.tax_year() == Year(tax_year))
-
-    if ticker:
-        filters.append(lambda tr: tr.ticker == ticker)
-
-    return filters
+def create_filters(tax_year: int | None = None, ticker: str | None = None) -> Sequence[Callable[[Transaction], bool]]:
+    return [
+        lambda tr: tr.tax_year() == Year(tax_year) if tax_year else True,
+        lambda tr: tr.ticker == ticker if ticker else True,
+    ]
 
 
 def version_callback(value: bool) -> None:
@@ -124,17 +85,17 @@ def version_callback(value: bool) -> None:
 @app.callback()
 def main_callback(
     strict: Annotated[bool, typer.Option(help='Abort if data integrity issues are found.')] = config.strict,
-    cache_file: Annotated[Path, typer.Option(dir_okay=False, help='Cache file to store additional data about securities.')] = config.cache_file,
-    include_fx_fees: Annotated[bool, typer.Option(help='Include foreign exchange fees as an allowable cost.')] = config.include_fx_fees,
+    cache: Annotated[Path, typer.Option(dir_okay=False, help='Cache file to store securities data.')] = config.cache,
+    include_fx_fees: Annotated[bool, typer.Option(help='Include FX fees as an allowable cost.')] = config.include_fx_fees,
     verbose: Annotated[bool, typer.Option('--verbose', help='Enable additional logging.')] = False,
     quiet: Annotated[bool, typer.Option('--quiet', help='Disable all non-critical logging.')] = False,
-    version: Annotated[Optional[bool], typer.Option('--version', callback=version_callback, help='Show version information and exit.')] = None,
+    version: Annotated[bool, typer.Option('--version', callback=version_callback, help='Show version information.')] = False,
 ) -> None:
     if verbose and quiet:
-        raise MutuallyExclusiveOption('--verbose', '--quiet')
+        raise MutuallyExclusiveError('--verbose', '--quiet')
 
     config.strict = strict
-    config.cache_file = cache_file
+    config.cache = cache
     config.include_fx_fees = include_fx_fees
     config.log_level = logging.DEBUG if verbose else logging.CRITICAL if quiet else config.log_level
 
@@ -153,7 +114,7 @@ def orders_command(
     Show share buy/sell orders.
     '''
     if acquisitions_only and disposals_only:
-        raise MutuallyExclusiveOption('--acquisitions', '--disposals')
+        raise MutuallyExclusiveError('--acquisitions', '--disposals')
 
     tr_hist, _ = parse(files)
     filters = create_filters(tax_year=tax_year, ticker=ticker)
@@ -193,7 +154,7 @@ def transfers_command(
     Show cash deposits and cash withdrawals.
     '''
     if deposits_only and withdrawals_only:
-        raise MutuallyExclusiveOption('--deposits', '--withdrawals')
+        raise MutuallyExclusiveError('--deposits', '--withdrawals')
 
     tr_hist, _ = parse(files)
     filters = create_filters(tax_year=tax_year)
@@ -233,7 +194,7 @@ def capital_gains_command(
     Show capital gains report.
     '''
     if gains_only and losses_only:
-        raise MutuallyExclusiveOption('--gains', '--losses')
+        raise MutuallyExclusiveError('--gains', '--losses')
 
     _, tax_calculator = parse(files)
     tax_year = Year(tax_year)
@@ -261,7 +222,3 @@ def holdings_command(
         print(table.to_string())
     else:
         logger.info(f'No holdings found')
-
-
-def main() -> None:
-    app()

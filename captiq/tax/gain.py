@@ -34,21 +34,3 @@ class CapitalGain:
                 f'quantity: {self.quantity}, cost: {self.cost}, '
                 f'proceeds: {self.disposal.gross_proceeds}, '
                 f'gain: {self.gain}, identification: {self.identification}')
-    
-
-@dataclass
-class Section104:
-    quantity: Decimal
-    cost: Money
-
-    def __init__(self, _date: date, quantity: Decimal, cost: Money):
-        self.quantity = quantity
-        self.cost = cost
-
-    def increase(self, _date: date, quantity: Decimal, cost: Money) -> None:
-        self.quantity += quantity
-        self.cost += cost
-
-    def decrease(self, _date: date, quantity: Decimal, cost: Money) -> None:
-        self.quantity -= quantity
-        self.cost -= cost
