@@ -4,7 +4,6 @@ from pathlib import Path
 
 from platformdirs import user_cache_dir
 
-
 @dataclass
 class Config:
     strict: bool = True

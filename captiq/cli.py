@@ -1,7 +1,5 @@
 import logging
-import operator
 from collections.abc import Callable, Sequence
-from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -14,15 +12,14 @@ from captiq.providers import SecurityData, FXData
 
 from captiq.logging import configure_logger
 from captiq.parsers import find_parser
-from captiq.table import OutputFormat
-from captiq.taxcalc import TaxCalculator
-from captiq.transaction import Acquisition, Disposal, Transaction
-from captiq.trhistory import TrHistory
+from captiq.calculate import TaxCalculator
+from captiq.transaction import Transaction
+from captiq.trhistory import TransactionHistory
 from captiq.types import Ticker, Year
-from captiq.utils import boldify, tax_year_full_date, tax_year_short_date
 from captiq.logging import logger
+from captiq.year import TaxYear
 
-__version__ = '1.0.0'
+__version__ = '0.1.0'
 __package__ = 'captiq'
 
 
@@ -49,19 +46,15 @@ FilesArg = Annotated[list[Path], typer.Argument(
     show_default=False,
 )]
 
-TaxYearOpt = Annotated[Optional[int], typer.Option(
-    min=2008, max=datetime.now().year,
+TaxYearOpt = Annotated[int, typer.Option(
+    min=2008, max=TaxYear.current(),
     metavar='TAX-YEAR', help='Filter by tax year.',
-    show_default=False,
+    show_default=True,
 )]
 
 TickerOpt = Annotated[Optional[str], typer.Option(
     metavar='TICKER', help='Filter by ticker.',
     show_default=False,
-)]
-
-OutputFormatOpt = Annotated[OutputFormat, typer.Option(
-    '--output', '-o', help='Output format.'
 )]
 
 
@@ -70,7 +63,7 @@ def abort(message: str) -> None:
     raise typer.Exit(code=1)
 
 
-def parse(input_paths: list[Path]) -> tuple[TrHistory, TaxCalculator]:
+def parse(input_paths: list[Path]) -> tuple[TransactionHistory, TaxCalculator]:
     orders, dividends, transfers, interest = [], [], [], []
 
     for path in input_paths:
@@ -102,16 +95,14 @@ def parse(input_paths: list[Path]) -> tuple[TrHistory, TaxCalculator]:
             else:
                 abort(f'Unable to find a parser for {csv_file}')
 
-    tr_hist = TrHistory(orders=orders, dividends=dividends, transfers=transfers, interest=interest)
+    tr_hist = TransactionHistory(orders=orders, dividends=dividends, transfers=transfers, interest=interest)
     tax_calculator = TaxCalculator(tr_hist, SecurityData(tr_hist, config.cache_file), FXData())
     return tr_hist, tax_calculator
 
 
 def create_filters(
     tax_year: int | None = None,
-    ticker: str | None = None,
-    tr_type: type[Transaction] | None = None,
-    total_op: Callable | None = None,
+    ticker: str | None = None
 ) -> Sequence[Callable[[Transaction], bool]]:
     filters = []
 
@@ -120,12 +111,6 @@ def create_filters(
 
     if ticker:
         filters.append(lambda tr: tr.ticker == ticker)
-
-    if tr_type:
-        filters.append(lambda tr: isinstance(tr, tr_type))
-
-    if total_op:
-        filters.append(lambda tr: total_op(tr.total.amount, 0.0))
 
     return filters
 
@@ -159,11 +144,10 @@ def main_callback(
 @app.command('orders')
 def orders_command(
     files: FilesArg,
-    tax_year: TaxYearOpt = None,
+    tax_year: TaxYearOpt = TaxYear.current(),
     ticker: TickerOpt = None,
     acquisitions_only: Annotated[bool, typer.Option('--acquisitions', help='Show only acquisitions.')] = False,
-    disposals_only: Annotated[bool, typer.Option('--disposals', help='Show only disposals.')] = False,
-    format: OutputFormatOpt = OutputFormat.TEXT,
+    disposals_only: Annotated[bool, typer.Option('--disposals', help='Show only disposals.')] = False
 ) -> None:
     '''
     Show share buy/sell orders.
@@ -172,36 +156,38 @@ def orders_command(
         raise MutuallyExclusiveOption('--acquisitions', '--disposals')
 
     tr_hist, _ = parse(files)
-    tr_type = Acquisition if acquisitions_only else Disposal if disposals_only else None
-    filters = create_filters(tax_year=tax_year, ticker=ticker, tr_type=tr_type)
+    filters = create_filters(tax_year=tax_year, ticker=ticker)
     
-    if table := tr_hist.get_orders_table(filters):
-        print(table.to_string(format, leading_nl=config.logging_enabled))
+    if table := tr_hist.get_orders_table(filters, acquisitions_only, disposals_only):
+        print(table.to_string())
+    else:
+        logger.info(f'No orders found')
 
 
 @app.command('dividends')
 def dividends_command(
     files: FilesArg,
-    tax_year: TaxYearOpt = None,
+    tax_year: TaxYearOpt = TaxYear.current(),
     ticker: TickerOpt = None,
-    format: OutputFormatOpt = OutputFormat.TEXT,
 ) -> None:
     '''
     Show share dividends paid out.
     '''
     tr_hist, _ = parse(files)
     filters = create_filters(tax_year=tax_year, ticker=ticker)
+
     if table := tr_hist.get_dividends_table(filters):
-        print(table.to_string(format, leading_nl=config.logging_enabled))
+        print(table.to_string())
+    else:
+        logger.info(f'No dividends found')
 
 
 @app.command('transfers')
 def transfers_command(
     files: FilesArg,
-    tax_year: TaxYearOpt = None,
+    tax_year: TaxYearOpt = TaxYear.current(),
     deposits_only: Annotated[bool, typer.Option('--deposits', help='Show only deposits.')] = False,
-    withdrawals_only: Annotated[bool, typer.Option('--withdrawals', help='Show only withdrawals.')] = False,
-    format: OutputFormatOpt = OutputFormat.TEXT,
+    withdrawals_only: Annotated[bool, typer.Option('--withdrawals', help='Show only withdrawals.')] = False
 ) -> None:
     '''
     Show cash deposits and cash withdrawals.
@@ -210,36 +196,38 @@ def transfers_command(
         raise MutuallyExclusiveOption('--deposits', '--withdrawals')
 
     tr_hist, _ = parse(files)
-    total_op = operator.gt if deposits_only else operator.lt if withdrawals_only else None
-    filters = create_filters(tax_year=tax_year, total_op=total_op)
+    filters = create_filters(tax_year=tax_year)
     
-    if table := tr_hist.get_transfers_table(filters):
-        print(table.to_string(format, leading_nl=config.logging_enabled))
+    if table := tr_hist.get_transfers_table(filters, deposits_only, withdrawals_only):
+        print(table.to_string())
+    else:
+        logger.info(f'No transfers found')
 
 
 @app.command('interest')
 def interest_command(
     files: FilesArg,
-    tax_year: TaxYearOpt = None,
-    format: OutputFormatOpt = OutputFormat.TEXT,
+    tax_year: TaxYearOpt = TaxYear.current()
 ) -> None:
     '''
     Show interest earned on cash.
     '''
     tr_hist, _ = parse(files)
     filters = create_filters(tax_year=tax_year)
+
     if table := tr_hist.get_interest_table(filters):
-        print(table.to_string(format, leading_nl=config.logging_enabled))
+        print(table.to_string())
+    else:
+        logger.info(f'No interest found')
 
 
 @app.command('capital-gains')
 def capital_gains_command(
     files: FilesArg,
-    gains_only: Annotated[bool, typer.Option('--gains', help='Show only capital gains.')] = False,
-    losses_only: Annotated[bool, typer.Option('--losses', help='Show only capital losses.')] = False,
-    tax_year: TaxYearOpt = None,
+    tax_year: TaxYearOpt = TaxYear.current(),
     ticker: TickerOpt = None,
-    format: OutputFormatOpt = OutputFormat.TEXT,
+    gains_only: Annotated[bool, typer.Option('--gains', help='Show only capital gains.')] = False,
+    losses_only: Annotated[bool, typer.Option('--losses', help='Show only capital losses.')] = False
 ) -> None:
     '''
     Show capital gains report.
@@ -247,46 +235,33 @@ def capital_gains_command(
     if gains_only and losses_only:
         raise MutuallyExclusiveOption('--gains', '--losses')
 
-    if format != OutputFormat.TEXT and not tax_year:
-        raise click.exceptions.UsageError(f'The {format.value} format requires the option --tax-year to be used')
-
     _, tax_calculator = parse(files)
-    tax_year = Year(tax_year) if tax_year else None
-    ticker = Ticker(ticker) if ticker else None
+    tax_year = Year(tax_year)
+    ticker = Ticker(ticker)
 
-    try:
-        tax_years = [tax_year] if tax_year else sorted(tax_calculator.disposal_years())
-    except CaptiqError as e:
-        abort(str(e))
-
-    for tax_year_idx, tax_year in enumerate(tax_years):
-        table = tax_calculator.get_capital_gains_table(tax_year, ticker, gains_only, losses_only)
-
-        if table:
-            print(end='\n' if tax_year_idx == 0 and config.logging_enabled else '')
-
-            if format == OutputFormat.TEXT:
-                print(f'{boldify(f"Capital Gains Tax Report {tax_year_short_date(tax_year)}")}')
-                print(f'{tax_year_full_date(tax_year)}')
-                print(table.to_string(format))
-            else:
-                print(table.to_string(format, leading_nl=False))
+    if table := tax_calculator.get_capital_gains_table(tax_year, ticker, gains_only, losses_only):
+        print(table.to_string())
+    else:
+        logger.info(f'No capital gains found')
 
 
 @app.command('holdings')
 def holdings_command(
     files: FilesArg,
     ticker: TickerOpt = None,
-    show_gain: Annotated[bool, typer.Option('--gains', help='Show unrealised gains/losses.')] = False,
-    format: OutputFormatOpt = OutputFormat.TEXT,
+    show_unrealised: Annotated[bool, typer.Option('--unrealised', help='Show unrealised gains/losses.')] = False
 ) -> None:
     '''
     Show current holdings.
     '''
     _, tax_calculator = parse(files)
-    ticker = Ticker(ticker) if ticker else None
-    if table := tax_calculator.get_holdings_table(ticker, show_gain):
-        print(table.to_string(format, leading_nl=config.logging_enabled))
+    ticker = Ticker(ticker)
+
+    if table := tax_calculator.get_holdings_table(ticker, show_unrealised):
+        print(table.to_string())
+    else:
+        logger.info(f'No holdings found')
+
 
 def main() -> None:
     app()

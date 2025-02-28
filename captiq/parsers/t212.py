@@ -8,16 +8,16 @@ from typing import Final
 from dateutil.parser import parse as parse_timestamp
 from moneyed import Money
 
-from captiq.const import MIN_TIMESTAMP
 from captiq.exceptions import CalculatedAmountError, FeesError, OrderDateError, TransactionTypeError
-
 from captiq.fees import Fees
-from captiq.types import ISIN, Ticker
 from captiq.parsers.types import ParsingResult
+from captiq.year import MIN_TIMESTAMP
 from captiq.transaction import Acquisition, Disposal, Dividend, Interest, Order, Transfer
 from captiq.types import ISIN, Ticker
-from captiq.utils import dict2str, raise_or_warn, read_decimal
-from captiq.logging import logger
+from captiq.logging import logger, raise_or_warn
+
+def read_decimal(val: str, default: Decimal = Decimal('0.0')) -> Decimal:
+    return Decimal(val) if val.strip() else default
 
 def read_money(row: Mapping[str, str], field: str) -> Money | None:
     if amount := row.get(field, '').strip():
@@ -204,7 +204,7 @@ class Trading212Parser:
 
         self._orders.append(order_class(timestamp, isin=isin, ticker=ticker, name=name, total=total, quantity=quantity, fees=fees, tr_id=tr_id))
 
-        logger.debug(f'Parsed row {dict2str(row)} as {self._orders[-1]}\n')
+        logger.debug(f'Parsed row {str(row)} as {self._orders[-1]}\n')
 
     def _parse_dividend(self, row: Mapping[str, str], tr_type: str, timestamp: datetime, tr_id: str, total: Money) -> None:
         isin = ISIN(row['ISIN'])
@@ -214,7 +214,7 @@ class Trading212Parser:
 
         self._dividends.append(Dividend(timestamp, isin=isin, ticker=ticker, name=name, total=total, withheld=withheld, tr_id=tr_id))
 
-        logger.debug(f'Parsed row {dict2str(row)} as {self._dividends[-1]}\n')
+        logger.debug(f'Parsed row {str(row)} as {self._dividends[-1]}\n')
 
     def _parse_transfer(self, row: Mapping[str, str], tr_type: str, timestamp: datetime, tr_id: str, total: Money) -> None:
         if tr_type == 'Withdrawal':
@@ -222,9 +222,9 @@ class Trading212Parser:
 
         self._transfers.append(Transfer(timestamp, tr_id=tr_id, total=total))
 
-        logger.debug(f'Parsed row {dict2str(row)} as {self._transfers[-1]}\n')
+        logger.debug(f'Parsed row {str(row)} as {self._transfers[-1]}\n')
 
     def _parse_interest(self, row: Mapping[str, str], tr_type: str, timestamp: datetime, tr_id: str, total: Money) -> None:
         self._interest.append(Interest(timestamp, tr_id=tr_id, total=total))
 
-        logger.debug(f'Parsed row {dict2str(row)} as {self._interest[-1]}\n')
+        logger.debug(f'Parsed row {str(row)} as {self._interest[-1]}\n')

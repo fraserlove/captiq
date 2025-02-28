@@ -8,7 +8,7 @@ from moneyed import Money
 
 from captiq.providers.exceptions import DataProviderError
 from captiq.providers.types import SecurityInfo, Split
-from captiq.trhistory import TrHistory
+from captiq.trhistory import TransactionHistory
 from captiq.types import ISIN
 from captiq.logging import logger
 
@@ -46,7 +46,7 @@ class YahooSecurityProvider(SecurityProvider):
         return Money(price, currency)
 
 class SecurityData:
-    def __init__(self, tr_hist: TrHistory, cache_file: Path, security_provider: SecurityProvider | None = None) -> None:
+    def __init__(self, tr_hist: TransactionHistory, cache_file: Path, security_provider: SecurityProvider | None = None) -> None:
         self._security_provider = security_provider or YahooSecurityProvider()
         self._tr_hist = tr_hist
         self._cache_file = cache_file

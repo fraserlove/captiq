@@ -11,9 +11,9 @@ from typing import ClassVar, Self
 from moneyed import Money
 
 from captiq.fees import Fees
-from captiq.providers import Split
+from captiq.providers.types import Split
 from captiq.types import ISIN, Ticker, Year
-from captiq.utils import date_to_tax_year
+from captiq.year import TaxYear
 
 @dataclass(frozen=True)
 class Transaction(ABC):
@@ -27,7 +27,7 @@ class Transaction(ABC):
         return self.timestamp.date()
 
     def tax_year(self) -> Year:
-        return date_to_tax_year(self.date)
+        return TaxYear.from_date(self.date)
 
 
 @dataclass(kw_only=True, frozen=True)

@@ -10,13 +10,14 @@ from moneyed import Money
 from captiq.config import config
 from captiq.const import BASE_CURRENCY
 from captiq.exceptions import AmbiguousTickerError, IncompleteRecordsError, CaptiqError
-from captiq.providers import SecurityData, FXData
+from captiq.providers.security import SecurityData
+from captiq.providers.fx import FXData
 from captiq.table import Field, Format, Table
+from captiq.tax import CapitalGain, Section104
 from captiq.transaction import Acquisition, Disposal, Order
-from captiq.trhistory import TrHistory
+from captiq.trhistory import TransactionHistory
 from captiq.types import ISIN, Ticker, Year
-from captiq.utils import raise_or_warn
-from captiq.logging import logger
+from captiq.logging import logger, raise_or_warn
 
 GroupKey = namedtuple('GroupKey', ['isin', 'date', 'type'])
 GroupDict: TypeAlias = Mapping[GroupKey, Sequence[Order]]
@@ -27,55 +28,8 @@ def same_day_match(ord1: Acquisition, ord2: Disposal) -> bool:
 def thirty_days_match(ord1: Acquisition, ord2: Disposal) -> bool:
     return ord1.isin == ord2.isin and ord2.date < ord1.date <= ord2.date + timedelta(days=30)
 
-@dataclass
-class CapitalGain:
-    disposal: Disposal
-    cost: Money
-    acquisition_date: date | None = None
-
-    @property
-    def gain(self) -> Money:
-        return self.disposal.gross_proceeds - self.cost
-
-    @property
-    def quantity(self) -> Decimal:
-        return self.disposal.original_quantity or self.disposal.quantity
-
-    @property
-    def identification(self) -> str:
-        match self.acquisition_date:
-            case None:
-                return 'Section 104'
-            case self.disposal.date:
-                return 'Same day'
-            case _:
-                return f'Bed & B. ({self.acquisition_date})'
-
-    def __str__(self) -> str:
-        return (f'{self.disposal.date} {self.disposal.isin:<4} '
-                f'quantity: {self.quantity}, cost: {self.cost}, '
-                f'proceeds: {self.disposal.gross_proceeds}, '
-                f'gain: {self.gain}, identification: {self.identification}')
-
-@dataclass
-class Section104:
-    quantity: Decimal
-    cost: Money
-
-    def __init__(self, _date: date, quantity: Decimal, cost: Money):
-        self.quantity = quantity
-        self.cost = cost
-
-    def increase(self, _date: date, quantity: Decimal, cost: Money) -> None:
-        self.quantity += quantity
-        self.cost += cost
-
-    def decrease(self, _date: date, quantity: Decimal, cost: Money) -> None:
-        self.quantity -= quantity
-        self.cost -= cost
-
 class TaxCalculator:
-    def __init__(self, tr_hist: TrHistory, security_data: SecurityData, fx_data: FXData) -> None:
+    def __init__(self, tr_hist: TransactionHistory, security_data: SecurityData, fx_data: FXData) -> None:
         self._tr_hist = tr_hist
         self._security_data = security_data
         self._fx_data = fx_data
@@ -140,7 +94,7 @@ class TaxCalculator:
             Field(f'Cost', Format.MONEY, show_sum=True),
             Field(f'Unrealised Proceeds', Format.MONEY, visible=show_gain, show_sum=True),
             Field(f'Unrealised Gain/Loss', Format.MONEY, visible=show_gain, show_sum=True),
-            Field('Weight (%)', Format.DECIMAL, visible=show_gain),
+            Field('Weight (%)', Format.DECIMAL, visible=show_gain and ticker_filter is None),
         ])
 
         holdings = []

@@ -1,11 +1,10 @@
-from pathlib import Path
 from typing import Type
 
 from captiq.logging import logger
 from captiq.parsers.types import Parser
 from captiq.parsers.t212 import Trading212Parser
 
-def find_parser(csv_file: Path) -> Parser | None:
+def find_parser(csv_file: str) -> Parser | None:
     '''
     Find the first parser that can parse the given CSV file.
     '''

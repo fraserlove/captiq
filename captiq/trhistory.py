@@ -1,19 +1,10 @@
-from collections.abc import Callable, Mapping, Sequence, ValuesView
+from collections.abc import Callable, Mapping, Iterable, Sequence, ValuesView
 from typing import NamedTuple, TypeVar
 
 from captiq.exceptions import AmbiguousTickerError
 from captiq.table import Field, Format, Table
-from captiq.transaction import (
-    Acquisition,
-    Disposal,
-    Dividend,
-    Interest,
-    Order,
-    Transaction,
-    Transfer,
-)
+from captiq.transaction import Acquisition, Disposal, Dividend, Interest, Order, Transaction, Transfer
 from captiq.types import ISIN, Ticker
-from captiq.utils import multifilter
 
 T = TypeVar('T', bound=Transaction)
 
@@ -22,13 +13,15 @@ def unique_and_sorted(transactions: Sequence[T] | None) -> Sequence[T]:
     """Remove duplicated transactions and sort them by timestamp."""
     return sorted(set(transactions or []), key=lambda tr: tr.timestamp)
 
+def multifilter(filters: Sequence[Callable] | None, iterable: Iterable) -> Iterable:
+    return iterable if not filters else filter(lambda x: all(f(x) for f in filters), iterable)
 
 class Security(NamedTuple):
     isin: ISIN
     name: str = ''
 
 
-class TrHistory:
+class TransactionHistory:
     def __init__(
         self,
         *,
@@ -78,7 +71,7 @@ class TrHistory:
             case _:
                 raise AmbiguousTickerError(ticker)
 
-    def get_orders_table(self, filters: Sequence[Callable] | None = None) -> Table:
+    def get_orders_table(self, filters: Sequence[Callable] | None = None, acquisitions_only: bool = False, disposals_only: bool = False) -> Table:
         table = Table([
             Field('Date', Format.DATE),
             Field('Security Name'),
@@ -86,8 +79,8 @@ class TrHistory:
             Field('Ticker'),
             Field('Quantity', Format.QUANTITY),
             Field('Price', Format.MONEY),
-            Field('Cost', Format.MONEY, show_sum=True),
-            Field('Proceeds', Format.MONEY, show_sum=True),
+            Field('Cost', Format.MONEY, show_sum=True, visible=not disposals_only),
+            Field('Proceeds', Format.MONEY, show_sum=True, visible=not acquisitions_only),
             Field('Fees', Format.MONEY, show_sum=True),
         ])
 
@@ -97,6 +90,10 @@ class TrHistory:
         for idx, tr in enumerate(transactions):
             cost = tr.total if isinstance(tr, Acquisition) else None
             proceeds = tr.total if isinstance(tr, Disposal) else None
+            if acquisitions_only and isinstance(tr, Disposal):
+                continue
+            if disposals_only and isinstance(tr, Acquisition):
+                continue
             table.add_row([tr.date, tr.name, tr.isin, tr.ticker, tr.quantity, tr.price, cost, proceeds, tr.fees.total])
             
             if idx < last_idx and tr.tax_year() != transactions[idx + 1].tax_year():
@@ -125,11 +122,11 @@ class TrHistory:
 
         return table
 
-    def get_transfers_table(self, filters: Sequence[Callable] | None = None) -> Table:
+    def get_transfers_table(self, filters: Sequence[Callable] | None = None, deposits_only: bool = False, withdrawals_only: bool = False) -> Table:
         table = Table([
             Field('Date', Format.DATE),
-            Field('Deposit', Format.MONEY, show_sum=True),
-            Field('Withdrawal', Format.MONEY, show_sum=True),
+            Field('Deposit', Format.MONEY, show_sum=True, visible=not withdrawals_only),
+            Field('Withdrawal', Format.MONEY, show_sum=True, visible=not deposits_only),
         ])
 
         transactions = list(multifilter(filters, self._transfers))
@@ -138,10 +135,12 @@ class TrHistory:
         for idx, tr in enumerate(transactions):
             if tr.total.amount > 0:
                 deposited, widthdrew = tr.total, None
+                if deposits_only or not withdrawals_only:
+                    table.add_row([tr.date, deposited, widthdrew])
             else:
                 deposited, widthdrew = None, abs(tr.total)
-
-            table.add_row([tr.date, deposited, widthdrew])
+                if withdrawals_only or not deposits_only:
+                    table.add_row([tr.date, deposited, widthdrew])
             
             if idx < last_idx and tr.tax_year() != transactions[idx + 1].tax_year():
                 table.add_row([''] * len(table.field_names))
