@@ -40,17 +40,16 @@ Use `captiq --help` or `captiq -h` to view available options and commands, or al
 
 The `capital-gains` command generates a capital gains report. Other commands are available to view share `holdings`, market `orders` (acquisitions and disposals), `dividends` paid out, `transfers` (cash deposits or withdrawals), and `interest` earned.
 
-Output can be formatted as `text`, `csv`, `json`, or `html` using the `--output` or `-o` option.
+If no `--tax-year` argument is provided, the current tax year is used.
 
 ## Example
 
 Suppose you have a CSV file `T212.csv` containing your Trading 212 account activity. A capital gains report can be generated as follows:
 ```console
 $ captiq capital-gains --tax-year 2020 T212.csv
+INFO | T212 → 460 orders · 16 dividends · 52 transfers · 32 interest
 
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                                             Capital Gains Tax Report 2020/21                                                       │
-├────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ Disposal Date   Identification          Security Name                   ISIN              Quantity   Cost (GBP)   Proceeds (GBP)   Gain/loss (GBP) │
 ├────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ 09/11/2024      Same day                National Grid                   GB00BDR05C01    1.00000000         9.61             9.55             -0.06 │
@@ -85,7 +84,7 @@ $ captiq capital-gains --tax-year 2020 T212.csv
 
 ## Additional Information
 
-Share splits (sub-divisions) and mergers (consolidations) are supported and detected automatically via the [Yahoo Finance API](https://pypi.org/project/yfinance/), however spin-off events (de-mergers) are not currently supported.
+Share sub-divisions and consolidations are supported and detected automatically via the [Yahoo Finance API](https://pypi.org/project/yfinance/), however spin-off events (de-mergers) are not currently supported.
 
 No special handling of accumulation shares in investment funds (where dividends or interest are automatically reinvested) is currently supported. This may result in different tax implications than what is reported.
 
