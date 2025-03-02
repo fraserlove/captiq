@@ -9,8 +9,4 @@ class Config:
     log_level: int = logging.INFO
     cache: str = f'{platformdirs.user_cache_dir()}/captiq/securities.yaml'
 
-    @property
-    def logging_enabled(self) -> bool:
-        return self.log_level != logging.CRITICAL
-
 config = Config()

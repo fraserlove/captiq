@@ -2,36 +2,15 @@ import math
 import prettytable
 from collections import defaultdict
 from collections.abc import Callable, Sequence
-from dataclasses import KW_ONLY, dataclass
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from enum import Enum
-from functools import cache
 from typing import Any, Mapping, Set
 from moneyed import Currency, Money
 
 from captiq import BASE_CURRENCY
 from captiq.logging import BOLD, RESET, BLUE, RED
-
-def boldify(text: str) -> str:
-    return f'{BOLD}{text}{RESET}'
-
-def colorise_money(money: Money, show_currency: bool = True) -> str:
-    '''
-    Format a Money object with color (red for negative, blue for positive).
-    If show_currency is True, the currency will be appended to the amount.
-
-    Example:
-    >>> colorise_money(Money(100, 'EUR'))
-    '100.00 EUR'
-    >>> colorise_money(Money(100, 'EUR'), show_currency=False)
-    '100.00'
-    '''
-    precision = currency_precision(money.currency)
-    amount = f'{money.amount:.{precision}f}'
-    color = RED if money.amount < 0 else BLUE
-    currency = f' {money.currency}' if show_currency else ''
-    return f'{color}{amount}{currency}{RESET}'
 
 class Format(Enum):
     DATE = 1
@@ -39,54 +18,50 @@ class Format(Enum):
     QUANTITY = 3
     MONEY = 4
 
-@cache
-def currency_precision(currency: Currency) -> int:
-    return int(math.log10(currency.sub_unit))
-
-def string_format() -> Callable[[str, Any], str]:
-    def _string_format(_field, val) -> str:
-        if isinstance(val, str):
-            return val
-        return '-'
-    return _string_format
-
-
-def date_format(format: str) -> Callable[[str, Any], str]:
-    def _date_format(_field, val) -> str:
-        if isinstance(val, date):
-            return val.strftime(format)
-        return val
-    return _date_format
-
-
-def decimal_format(precision: int = 2) -> Callable[[str, Any], str]:
-    def _decimal_format(_field, val) -> str:
-        if isinstance(val, Decimal):
-            return f'{val:.{precision}f}'
-        elif isinstance(val, str):
-            return val
-        return '-'
-    return _decimal_format
-
-
-def money_format(show_currency: bool) -> Callable[[str, Any], str]:
-    def _money_format(_field, val) -> str:
-        if isinstance(val, Money):
-            return colorise_money(val, show_currency)
-        elif isinstance(val, str):
-            return val
-        return '-'
-    return _money_format
-
-
 @dataclass
 class Field:
     name: str
     format: Format | None = None
-    _: KW_ONLY
     visible: bool = True
     show_sum: bool = False
 
+def get_precision(currency: Currency) -> int:
+    ''' Return the number of decimal places for a currency. '''
+    return int(math.log10(currency.sub_unit))
+
+def boldify(text: str) -> str:
+    ''' Format text with bold. '''
+    return f'{BOLD}{text}{RESET}'
+
+def colourify(money: Money, show_currency: bool = True) -> str:
+    ''' Format Money with colour (red for negative, blue for positive). '''
+    precision = get_precision(money.currency)
+    amount = f'{money.amount:.{precision}f}'
+    colour = RED if money.amount < 0 else BLUE
+    currency = f' {money.currency}' if show_currency else ''
+    return f'{colour}{amount}{currency}{RESET}'
+
+def string_format() -> Callable[[str, Any], str]:
+    def _string_format(_field, val: str) -> str:
+        return val if val else ''
+    return _string_format
+
+def date_format(format: str) -> Callable[[str, Any], str]:
+    def _date_format(_field, val: date) -> str:
+        return val.strftime(format) if val else ''
+    return _date_format
+
+def decimal_format(precision: int) -> Callable[[str, Any], str]:
+    def _decimal_format(_field, val: Decimal) -> str:
+        return f'{val:.{precision}f}' if val else ''
+    return _decimal_format
+
+def money_format(show_currency: bool) -> Callable[[str, Any], str]:
+    def _money_format(_field, val: Money | list[Money]) -> str:
+        if isinstance(val, list):
+            return '\n'.join(colourify(money, show_currency) for money in val)
+        return colourify(val, show_currency) if isinstance(val, Money) else val if isinstance(val, str) else ''
+    return _money_format
 
 class Table(prettytable.PrettyTable):
     def __init__(self, fields: Sequence[Field], **kwargs) -> None:
@@ -145,7 +120,6 @@ class Table(prettytable.PrettyTable):
             self._add_total_row()
 
         fields = [field.name for field in self.__fields if field.visible]
-
         table_str = self.get_formatted_string(fields=fields)
         
         return f'\n{table_str}\n'
@@ -185,20 +159,18 @@ class Table(prettytable.PrettyTable):
                     self.align[field.name] = 'l'
 
     def _add_total_row(self) -> None:
-        self.add_row([self._sum_field(field) if field.show_sum else '' for field in self.__fields])
+        self.add_row([self._sum_field(field) if field.show_sum else None for field in self.__fields])
 
     def _sum_field(self, field: Field) -> str:
         i = self._field_index(field.name)
 
         if field.format == Format.MONEY and self._is_multicurrency(field.name):
-            totals: dict[Currency, Decimal] = defaultdict(Decimal)
+            totals = defaultdict(Decimal)
             for row in self.rows:
                 if row[i]:
-                    precision = currency_precision(row[i].currency)
-                    totals[row[i].currency] += round(row[i].amount, precision)
-
-            formatter = money_format(show_currency=True)
-            return '\n'.join(formatter('', Money(total, cur)) for cur, total in totals.items())
+                    totals[row[i].currency] += row[i].amount
+            
+            return money_format(show_currency=True)('', [Money(total, currency) for currency, total in totals.items()])
 
         total = sum(row[i].amount if isinstance(row[i], Money) else row[i] for row in self.rows if row[i])
 
@@ -241,7 +213,7 @@ class Table(prettytable.PrettyTable):
                 if isinstance(field, Money):
                     expanded_row.extend([field.amount, field.currency])
                 else:
-                    expanded_row.extend(['-', None])
+                    expanded_row.extend([field, None])
             else:
                 expanded_row.append(field)
 

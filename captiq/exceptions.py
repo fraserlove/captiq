@@ -2,6 +2,7 @@ from collections.abc import Mapping
 from decimal import Decimal
 from pathlib import Path
 
+from captiq.year import TaxYear
 from captiq.types import ISIN, Ticker
 
 class CaptiqError(Exception):
@@ -25,7 +26,7 @@ class FeesError(ParseError):
 
 class OrderDateError(ParseError):
     def __init__(self, file: Path, row: Mapping[str, str]) -> None:
-        super().__init__(file, row, 'Orders executed before 6 April of 2008 are not supported')
+        super().__init__(file, row, f'Orders executed before {TaxYear.MIN_TIMESTAMP.strftime("%d/%m/%Y")} are not supported')
 
 class IncompleteRecordsError(CaptiqError):
     def __init__(self, isin: ISIN, name: str) -> None:
