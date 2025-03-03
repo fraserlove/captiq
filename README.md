@@ -6,14 +6,14 @@ Captiq analyses account activity on share investment platforms to calculate UK C
 
 Before installing Captiq, consider using a virtual environment for the installation to avoid conflicts with other Python packages.
 
-```bash
+```sh
 python -m venv .venv
 source .venv/bin/activate
 ```
 
 Clone the repository and install the `captiq` package:
 
-```bash
+```sh
 git clone https://github.com/fraserlove/captiq.git
 cd captiq
 pip install .
@@ -27,7 +27,7 @@ Shell completion is available for your shell and can be viewed with `captiq --sh
 
 Captiq processes data from CSV files exported from your investment platform. Currently, only _Trading 212_ is supported. You can provide individual CSV files or directories containing multiple CSV files. Captiq commands take the following form:
 
-```
+```sh
 captiq [OPTIONS]... COMMAND [ARGS]... [FILES]...
 ```
 
