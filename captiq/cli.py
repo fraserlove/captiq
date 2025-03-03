@@ -1,20 +1,17 @@
-import logging
 from collections.abc import Callable, Sequence
-from pathlib import Path
 from typing import Annotated, Optional
-
-import click
-import typer
+from pathlib import Path
+import click, typer
 
 from captiq.config import config
 from captiq.exceptions import CaptiqError
 from captiq.providers import SecurityData, FXData
 from captiq.logging import configure_logger
-from captiq.calculate import TaxCalculator
+from captiq.tax import TaxCalculator
 from captiq.transaction import Transaction
 from captiq.trhistory import Transactions
 from captiq.types import Ticker, Year
-from captiq.logging import logger
+from captiq.logging import logger, set_log_level
 from captiq.year import TaxYear
 from captiq import __version__, __package__
 from captiq.parsers import parse_files
@@ -97,7 +94,7 @@ def main_callback(
     config.strict = strict
     config.cache = cache
     config.include_fx_fees = include_fx_fees
-    config.log_level = logging.DEBUG if verbose else logging.CRITICAL if quiet else config.log_level
+    set_log_level(verbose, quiet)
 
     configure_logger()
 

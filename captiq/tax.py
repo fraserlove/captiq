@@ -1,8 +1,9 @@
 from collections import defaultdict, namedtuple
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
-from datetime import timedelta
+from datetime import timedelta, date
 from decimal import Decimal
+from dataclasses import dataclass
 from typing import TypeAlias
 
 from moneyed import Money
@@ -13,20 +14,69 @@ from captiq.exceptions import AmbiguousTickerError, IncompleteRecordsError, Capt
 from captiq.providers.security import SecurityData
 from captiq.providers.fx import FXData
 from captiq.table import Field, Format, Table
-from captiq.tax import CapitalGain, Section104
 from captiq.transaction import Acquisition, Disposal, Order
 from captiq.trhistory import Transactions
 from captiq.types import ISIN, Ticker, Year
 from captiq.logging import logger, raise_or_warn
 
+# Grouping orders by isin, date and type
 GroupKey = namedtuple('GroupKey', ['isin', 'date', 'type'])
 GroupDict: TypeAlias = Mapping[GroupKey, Sequence[Order]]
 
+# Match same-day acquisitions and disposals
 def same_day_match(ord1: Acquisition, ord2: Disposal) -> bool:
     return ord1.isin == ord2.isin and ord1.date == ord2.date
 
+# Match bed & b. disposals
 def thirty_days_match(ord1: Acquisition, ord2: Disposal) -> bool:
     return ord1.isin == ord2.isin and ord2.date < ord1.date <= ord2.date + timedelta(days=30)
+
+@dataclass
+class CapitalGain:
+    disposal: Disposal
+    cost: Money
+    acquisition_date: date | None = None
+
+    @property
+    def gain(self) -> Money:
+        return self.disposal.gross_proceeds - self.cost
+
+    @property
+    def quantity(self) -> Decimal:
+        return self.disposal.original_quantity or self.disposal.quantity
+
+    @property
+    def identification(self) -> str:
+        match self.acquisition_date:
+            case None:
+                return 'Section 104'
+            case self.disposal.date:
+                return 'Same day'
+            case _:
+                return f'Bed & B. ({self.acquisition_date})'
+
+    def __str__(self) -> str:
+        return (f'{self.disposal.date} {self.disposal.isin:<4} '
+                f'quantity: {self.quantity}, cost: {self.cost}, '
+                f'proceeds: {self.disposal.gross_proceeds}, '
+                f'gain: {self.gain}, identification: {self.identification}')
+
+@dataclass
+class Section104:
+    quantity: Decimal
+    cost: Money
+
+    def __init__(self, _date: date, quantity: Decimal, cost: Money):
+        self.quantity = quantity
+        self.cost = cost
+
+    def increase(self, _date: date, quantity: Decimal, cost: Money) -> None:
+        self.quantity += quantity
+        self.cost += cost
+
+    def decrease(self, _date: date, quantity: Decimal, cost: Money) -> None:
+        self.quantity -= quantity
+        self.cost -= cost
 
 class TaxCalculator:
     def __init__(self, tr_hist: Transactions, security_data: SecurityData, fx_data: FXData) -> None:

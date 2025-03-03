@@ -1,5 +1,4 @@
-import logging
-import logging.config
+import logging, logging.config
 
 from captiq.config import config
 
@@ -37,6 +36,9 @@ def raise_or_warn(e: Exception) -> None:
     if config.strict:
         raise e
     logger.warning(e)
+
+def set_log_level(verbose: bool, quiet: bool) -> None:
+    config.log_level = logging.DEBUG if verbose else logging.CRITICAL if quiet else config.log_level
 
 def configure_logger() -> None:
     logging.config.dictConfig({
