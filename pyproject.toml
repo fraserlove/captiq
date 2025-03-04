@@ -6,9 +6,7 @@ build-backend = 'hatchling.build'
 name = 'captiq'
 dynamic = ['version']
 readme = 'README.md'
-authors = [
-    {name = 'Fraser Love', email = 'me@fraser.love'}
-]
+authors = [{name = 'Fraser Love', email = 'me@fraser.love'}]
 dependencies = [
     'click~=8.1.0',
     'py-moneyed~=3.0',
