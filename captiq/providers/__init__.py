@@ -1,5 +1,5 @@
-from captiq.providers.types import Split
-from captiq.providers.security import SecurityData
-from captiq.providers.fx import FXData
+from .types import Split
+from .security import SecurityData
+from .fx import FXData
 
 __all__ = ['Split', 'FXData', 'SecurityData']
