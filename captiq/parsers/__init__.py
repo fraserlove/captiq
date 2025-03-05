@@ -1,8 +1,8 @@
 from typing import Type
 
+from .types import Parser
+from .t212 import Trading212Parser
 from captiq.logging import logger
-from captiq.parsers.types import Parser
-from captiq.parsers.t212 import Trading212Parser
 from captiq.exceptions import CaptiqError
 from captiq.trhistory import Transactions
 
