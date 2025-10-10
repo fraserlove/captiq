@@ -106,11 +106,13 @@ class SecurityData:
             with self._cache_file.open('r') as file:
                 if data := yaml.load(file, Loader=yaml.FullLoader):
                     self._security_info = data['securities']
+                    self._security_info = {ISIN(k): v for k, v in self._security_info.items()}
 
     def _update_cache(self) -> None:
         logger.debug(f'{"Updating" if self._cache_file.exists() else "Creating"} securities cache on {self._cache_file}')
         self._cache_file.parent.mkdir(parents=True, exist_ok=True)
         securities_info = dict(sorted(self._security_info.items()))
+        securities_info = {str(isin): info for isin, info in securities_info.items()}
         data = {'securities': securities_info}
 
         with self._cache_file.open('w') as file:
