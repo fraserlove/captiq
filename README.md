@@ -31,7 +31,7 @@ Captiq processes data from CSV files exported from your investment platform. Cur
 captiq [OPTIONS]... COMMAND [ARGS]... [FILES]...
 ```
 
-- `OPTIONS` specify global options available for all commands, such as `--strict` to abort if data integrity issues are found, or `--verbose` to enable additional logging.
+- `OPTIONS` specify global options available for all commands, such as `--strict` to abort if data integrity issues are found, or `--verbose` to enable additional logging. Other options include `--csv` and `--json` to export the reports to CSV or JSON files.
 - `COMMAND` specifies the command to execute, such as `orders` to view share acquisitions and disposals.
 - `ARGS` are command-specific options, such as `--acquisitions` to show only acquisitions.
 - `FILES` are the CSV files or directories containing CSV files to process.
