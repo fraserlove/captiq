@@ -73,6 +73,22 @@ def create_filters(tax_year: int | None = None, ticker: str | None = None) -> Se
     ]
 
 
+def output_table(table, table_type: str, tax_year: int, json_export: bool = False, csv_export: bool = False) -> None:
+    if json_export and csv_export:
+        raise MutuallyExclusiveError('--json', '--csv')
+    
+    if json_export:
+        json_file = Path(f"{table_type}_{tax_year}.json")
+        json_file.write_text(table.get_json_string(header=True), encoding='utf-8')
+        logger.info(f'Table exported to {json_file}')
+    elif csv_export:
+        csv_file = Path(f"{table_type}_{tax_year}.csv")
+        csv_file.write_text(table.get_csv_string(header=True), encoding='utf-8')
+        logger.info(f'Table exported to {csv_file}')
+    else:
+        print(table.to_string())
+
+
 def version_callback(value: bool) -> None:
     if value:
         print(f'{__package__} {__version__}')
@@ -105,7 +121,9 @@ def orders_command(
     tax_year: TaxYearOpt = TaxYear.current(),
     ticker: TickerOpt = None,
     acquisitions_only: Annotated[bool, typer.Option('--acquisitions', help='Show only acquisitions.')] = False,
-    disposals_only: Annotated[bool, typer.Option('--disposals', help='Show only disposals.')] = False
+    disposals_only: Annotated[bool, typer.Option('--disposals', help='Show only disposals.')] = False,
+    json_export: Annotated[bool, typer.Option('--json', help='Export table to automatically named JSON file.')] = False,
+    csv_export: Annotated[bool, typer.Option('--csv', help='Export table to automatically named CSV file.')] = False
 ) -> None:
     '''
     Show share buy/sell orders.
@@ -117,7 +135,7 @@ def orders_command(
     filters = create_filters(tax_year=tax_year, ticker=ticker)
     
     if table := tr_hist.get_orders_table(filters, acquisitions_only, disposals_only):
-        print(table.to_string())
+        output_table(table, 'orders', tax_year, json_export, csv_export)
     else:
         logger.info(f'No orders found')
 
@@ -127,6 +145,8 @@ def dividends_command(
     files: FilesArg,
     tax_year: TaxYearOpt = TaxYear.current(),
     ticker: TickerOpt = None,
+    json_export: Annotated[bool, typer.Option('--json', help='Export table to automatically named JSON file.')] = False,
+    csv_export: Annotated[bool, typer.Option('--csv', help='Export table to automatically named CSV file.')] = False
 ) -> None:
     '''
     Show share dividends paid out.
@@ -135,7 +155,7 @@ def dividends_command(
     filters = create_filters(tax_year=tax_year, ticker=ticker)
 
     if table := tr_hist.get_dividends_table(filters):
-        print(table.to_string())
+        output_table(table, 'dividends', tax_year, json_export, csv_export)
     else:
         logger.info(f'No dividends found')
 
@@ -145,7 +165,9 @@ def transfers_command(
     files: FilesArg,
     tax_year: TaxYearOpt = TaxYear.current(),
     deposits_only: Annotated[bool, typer.Option('--deposits', help='Show only deposits.')] = False,
-    withdrawals_only: Annotated[bool, typer.Option('--withdrawals', help='Show only withdrawals.')] = False
+    withdrawals_only: Annotated[bool, typer.Option('--withdrawals', help='Show only withdrawals.')] = False,
+    json_export: Annotated[bool, typer.Option('--json', help='Export table to automatically named JSON file.')] = False,
+    csv_export: Annotated[bool, typer.Option('--csv', help='Export table to automatically named CSV file.')] = False
 ) -> None:
     '''
     Show cash deposits and cash withdrawals.
@@ -157,7 +179,7 @@ def transfers_command(
     filters = create_filters(tax_year=tax_year)
     
     if table := tr_hist.get_transfers_table(filters, deposits_only, withdrawals_only):
-        print(table.to_string())
+        output_table(table, 'transfers', tax_year, json_export, csv_export)
     else:
         logger.info(f'No transfers found')
 
@@ -165,7 +187,9 @@ def transfers_command(
 @app.command('interest')
 def interest_command(
     files: FilesArg,
-    tax_year: TaxYearOpt = TaxYear.current()
+    tax_year: TaxYearOpt = TaxYear.current(),
+    json_export: Annotated[bool, typer.Option('--json', help='Export table to automatically named JSON file.')] = False,
+    csv_export: Annotated[bool, typer.Option('--csv', help='Export table to automatically named CSV file.')] = False
 ) -> None:
     '''
     Show interest earned on cash.
@@ -174,7 +198,7 @@ def interest_command(
     filters = create_filters(tax_year=tax_year)
 
     if table := tr_hist.get_interest_table(filters):
-        print(table.to_string())
+        output_table(table, 'interest', tax_year, json_export, csv_export)
     else:
         logger.info(f'No interest found')
 
@@ -185,7 +209,9 @@ def capital_gains_command(
     tax_year: TaxYearOpt = TaxYear.current(),
     ticker: TickerOpt = None,
     gains_only: Annotated[bool, typer.Option('--gains', help='Show only capital gains.')] = False,
-    losses_only: Annotated[bool, typer.Option('--losses', help='Show only capital losses.')] = False
+    losses_only: Annotated[bool, typer.Option('--losses', help='Show only capital losses.')] = False,
+    json_export: Annotated[bool, typer.Option('--json', help='Export table to automatically named JSON file.')] = False,
+    csv_export: Annotated[bool, typer.Option('--csv', help='Export table to automatically named CSV file.')] = False
 ) -> None:
     '''
     Show capital gains report.
@@ -198,7 +224,7 @@ def capital_gains_command(
     ticker = Ticker(ticker)
 
     if table := tax_calculator.get_capital_gains_table(tax_year, ticker, gains_only, losses_only):
-        print(table.to_string())
+        output_table(table, 'capital_gains', tax_year, json_export, csv_export)
     else:
         logger.info(f'No capital gains found')
 
@@ -207,7 +233,9 @@ def capital_gains_command(
 def holdings_command(
     files: FilesArg,
     ticker: TickerOpt = None,
-    show_unrealised: Annotated[bool, typer.Option('--unrealised', help='Show unrealised gains/losses.')] = False
+    show_unrealised: Annotated[bool, typer.Option('--unrealised', help='Show unrealised gains/losses.')] = False,
+    json_export: Annotated[bool, typer.Option('--json', help='Export table to automatically named JSON file.')] = False,
+    csv_export: Annotated[bool, typer.Option('--csv', help='Export table to automatically named CSV file.')] = False
 ) -> None:
     '''
     Show current holdings.
@@ -216,6 +244,6 @@ def holdings_command(
     ticker = Ticker(ticker)
 
     if table := tax_calculator.get_holdings_table(ticker, show_unrealised):
-        print(table.to_string())
+        output_table(table, 'holdings', TaxYear.current(), json_export, csv_export)
     else:
         logger.info(f'No holdings found')

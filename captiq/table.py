@@ -36,8 +36,12 @@ def boldify(text: str) -> str:
 def colourify(money: Money, show_currency: bool = True) -> str:
     ''' Format Money with colour (red for negative, blue for positive). '''
     precision = get_precision(money.currency)
-    amount = f'{money.amount:.{precision}f}'
-    colour = RED if money.amount < 0 else BLUE
+    if money.amount < 0:
+        amount = f'({abs(money.amount):.{precision}f})'
+        colour = RED
+    else:
+        amount = f'{money.amount:.{precision}f}'
+        colour = BLUE
     currency = f' {money.currency}' if show_currency else ''
     return f'{colour}{amount}{currency}{RESET}'
 
@@ -97,8 +101,23 @@ class Table(prettytable.PrettyTable):
     def get_json_string(self, **kwargs) -> str:
         import json
 
+        class CustomJSONEncoder(json.JSONEncoder):
+            def default(self, obj):
+                if isinstance(obj, Decimal):
+                    return float(obj)
+                elif isinstance(obj, date):
+                    return obj.isoformat()
+                elif isinstance(obj, Money):
+                    return {
+                        'amount': float(obj.amount),
+                        'currency': obj.currency.code
+                    }
+                elif isinstance(obj, Currency):
+                    return obj.code
+                return super().default(obj)
+
         options = self._get_options(kwargs)
-        json_options: Any = {'indent': 4, 'separators': (',', ': '), 'sort_keys': True}
+        json_options: Any = {'indent': 4, 'separators': (',', ': '), 'sort_keys': True, 'cls': CustomJSONEncoder}
         json_options.update({key: value for key, value in kwargs.items() if key not in options})
         objects: list[Any] = []
 

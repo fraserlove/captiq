@@ -108,9 +108,9 @@ class TaxCalculator:
             Field('Security Name'),
             Field('ISIN'),
             Field('Quantity', Format.QUANTITY),
-            Field(f'Cost', Format.MONEY, show_sum=True),
-            Field(f'Proceeds', Format.MONEY, show_sum=True),
-            Field(f'Gain/loss', Format.MONEY, show_sum=True),
+            Field('Cost', Format.MONEY, show_sum=True),
+            Field('Proceeds', Format.MONEY, show_sum=True),
+            Field('Gain/loss', Format.MONEY, show_sum=True),
         ])
 
         for cg in self.capital_gains(tax_year):
@@ -141,9 +141,9 @@ class TaxCalculator:
             Field('Security Name'),
             Field('ISIN'), 
             Field('Quantity', Format.QUANTITY),
-            Field(f'Cost', Format.MONEY, show_sum=True),
-            Field(f'Unrealised Proceeds', Format.MONEY, visible=show_gain, show_sum=True),
-            Field(f'Unrealised Gain/Loss', Format.MONEY, visible=show_gain, show_sum=True),
+            Field('Cost', Format.MONEY, show_sum=True),
+            Field('Unrealised Proceeds', Format.MONEY, visible=show_gain, show_sum=True),
+            Field('Unrealised Gain/Loss', Format.MONEY, visible=show_gain, show_sum=True),
             Field('Weight (%)', Format.DECIMAL, visible=show_gain and ticker_filter is None),
         ])
 
