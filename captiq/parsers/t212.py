@@ -69,6 +69,10 @@ class Trading212Parser:
         'Currency (Deposit fee)',
         'Merchant name',
         'Merchant category',
+        'Currency conversion from amount',
+        'Currency (Currency conversion from amount)',
+        'Currency conversion to amount',
+        'Currency (Currency conversion to amount)',
     )
 
     FIELDS: Final = (*REQUIRED_FIELDS, *DIVIDEND_FIELDS, *FEE_FIELDS, *IGNORED_FIELDS)
